@@ -16,7 +16,7 @@ import {
   Plugin,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { FittedDataPoint } from '@/lib/types';
+import { FittedDataPoint, ProjectionDataPoint } from '@/lib/types';
 import { HALVING_DATES, HALVING_CYCLES, getHalvingIndices, debugHalvingCoverage } from '@/lib/halvings';
 import { format } from 'date-fns';
 
@@ -36,16 +36,28 @@ interface PriceChartProps {
   data: FittedDataPoint[];
   isLogScale: boolean;
   showHalvings: boolean;
+  showProjections: boolean;
+  projectionData: ProjectionDataPoint[];
 }
 
-export default function PriceChart({ data, isLogScale, showHalvings }: PriceChartProps) {
+export default function PriceChart({ data, isLogScale, showHalvings, showProjections, projectionData }: PriceChartProps) {
   const chartRef = useRef<ChartJS<'line'>>(null);
 
   // Sample data for performance (take every nth point if too many)
   const sampleRate = Math.max(1, Math.floor(data.length / 1000));
   const sampledData = data.filter((_, i) => i % sampleRate === 0 || i === data.length - 1);
 
-  const labels = sampledData.map(d => format(new Date(d.date), 'yyyy-MM-dd'));
+  // Sample projection data similarly
+  const projectionSampleRate = Math.max(1, Math.floor(projectionData.length / 500));
+  const sampledProjections = projectionData.filter((_, i) => i % projectionSampleRate === 0 || i === projectionData.length - 1);
+
+  // Combined labels: historical + projection
+  const historicalLabels = sampledData.map(d => format(new Date(d.date), 'yyyy-MM-dd'));
+  const projectionLabels = showProjections ? sampledProjections.map(d => format(new Date(d.date), 'yyyy-MM-dd')) : [];
+  const labels = [...historicalLabels, ...projectionLabels];
+
+  // Track the index where projection starts
+  const projectionStartIndex = historicalLabels.length;
 
   // Get halving indices for the sampled data
   const halvingIndices = useMemo(() => getHalvingIndices(labels), [labels]);
@@ -159,13 +171,102 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
     },
   }), [showHalvings, halvingIndices, labels]);
 
+  // Create projection plugin for shading and label
+  const projectionPlugin: Plugin<'line'> = useMemo(() => ({
+    id: 'projectionPlugin',
+    beforeDraw: (chart) => {
+      if (!showProjections || sampledProjections.length === 0) return;
+
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea || !scales.x) return;
+
+      const { right, top, bottom } = chartArea;
+
+      // Get the x position where projection starts
+      const projStartX = scales.x.getPixelForValue(projectionStartIndex);
+
+      // Draw shaded region for projection
+      ctx.save();
+      ctx.fillStyle = 'rgba(139, 92, 246, 0.08)'; // Subtle purple tint
+      ctx.fillRect(projStartX, top, right - projStartX, bottom - top);
+
+      // Draw vertical dashed line at projection boundary
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(139, 92, 246, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.moveTo(projStartX, top);
+      ctx.lineTo(projStartX, bottom);
+      ctx.stroke();
+      ctx.restore();
+    },
+    afterDraw: (chart) => {
+      if (!showProjections || sampledProjections.length === 0) return;
+
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea || !scales.x) return;
+
+      const { top } = chartArea;
+
+      // Get the x position where projection starts
+      const projStartX = scales.x.getPixelForValue(projectionStartIndex);
+
+      // Draw "Projection" label
+      ctx.save();
+      ctx.fillStyle = 'rgba(139, 92, 246, 0.9)';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'left';
+
+      const labelText = 'Projection';
+      const textWidth = ctx.measureText(labelText).width;
+
+      // Background for label
+      ctx.fillStyle = 'rgba(31, 41, 55, 0.9)';
+      ctx.fillRect(projStartX + 8, top + 5, textWidth + 8, 18);
+
+      // Label text
+      ctx.fillStyle = 'rgba(139, 92, 246, 1)';
+      ctx.fillText(labelText, projStartX + 12, top + 18);
+      ctx.restore();
+    },
+  }), [showProjections, sampledProjections.length, projectionStartIndex]);
+
+  // Build data arrays that include projections
+  // Historical data + projection data for model/bands
+  // Historical data + nulls for BTC price (no projection)
+  const band2UpperData = [
+    ...sampledData.map(d => d.band2SigmaUpper),
+    ...(showProjections ? sampledProjections.map(d => d.band2SigmaUpper) : []),
+  ];
+  const band1UpperData = [
+    ...sampledData.map(d => d.band1SigmaUpper),
+    ...(showProjections ? sampledProjections.map(d => d.band1SigmaUpper) : []),
+  ];
+  const band1LowerData = [
+    ...sampledData.map(d => d.band1SigmaLower),
+    ...(showProjections ? sampledProjections.map(d => d.band1SigmaLower) : []),
+  ];
+  const band2LowerData = [
+    ...sampledData.map(d => d.band2SigmaLower),
+    ...(showProjections ? sampledProjections.map(d => d.band2SigmaLower) : []),
+  ];
+  const modelData = [
+    ...sampledData.map(d => d.fittedPrice),
+    ...(showProjections ? sampledProjections.map(d => d.fittedPrice) : []),
+  ];
+  // BTC price stops at historical data - null for projections
+  const priceData = [
+    ...sampledData.map(d => d.price),
+    ...(showProjections ? sampledProjections.map(() => null as number | null) : []),
+  ];
+
   const chartData = {
     labels,
     datasets: [
       // +2σ band (bubble zone) - top boundary
       {
         label: '+2σ (Bubble)',
-        data: sampledData.map(d => d.band2SigmaUpper),
+        data: band2UpperData,
         borderColor: 'rgba(239, 68, 68, 0.3)',
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
         borderWidth: 1,
@@ -177,7 +278,7 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
       // +1σ to +2σ (expensive zone)
       {
         label: '+1σ to +2σ (Expensive)',
-        data: sampledData.map(d => d.band1SigmaUpper),
+        data: band1UpperData,
         borderColor: 'rgba(249, 115, 22, 0.4)',
         backgroundColor: 'rgba(249, 115, 22, 0.15)',
         borderWidth: 1,
@@ -189,7 +290,7 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
       // Fair value zone (-1σ to +1σ)
       {
         label: 'Fair Value (-1σ to +1σ)',
-        data: sampledData.map(d => d.band1SigmaLower),
+        data: band1LowerData,
         borderColor: 'rgba(34, 197, 94, 0.4)',
         backgroundColor: 'rgba(100, 116, 139, 0.1)',
         borderWidth: 1,
@@ -201,7 +302,7 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
       // -1σ to -2σ (undervalued/deep value)
       {
         label: '-1σ to -2σ (Deep Value)',
-        data: sampledData.map(d => d.band2SigmaLower),
+        data: band2LowerData,
         borderColor: 'rgba(34, 197, 94, 0.3)',
         backgroundColor: 'rgba(34, 197, 94, 0.15)',
         borderWidth: 1,
@@ -213,7 +314,7 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
       // Power law fit line
       {
         label: 'Power Law Model',
-        data: sampledData.map(d => d.fittedPrice),
+        data: modelData,
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'transparent',
         borderWidth: 2,
@@ -226,7 +327,7 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
       // Actual BTC price
       {
         label: 'BTC Price (USD)',
-        data: sampledData.map(d => d.price),
+        data: priceData,
         borderColor: 'rgb(247, 147, 26)',
         backgroundColor: 'transparent',
         borderWidth: 2,
@@ -234,6 +335,7 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
         tension: 0,
         fill: false,
         order: 1,
+        spanGaps: false, // Don't connect across null values
       },
     ],
   };
@@ -265,13 +367,23 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
       },
       tooltip: {
         callbacks: {
+          title: (tooltipItems) => {
+            const dataIndex = tooltipItems[0]?.dataIndex;
+            if (dataIndex === undefined) return '';
+            const isProjection = dataIndex >= projectionStartIndex;
+            const label = tooltipItems[0]?.label || '';
+            return isProjection ? `${label} (Projection)` : label;
+          },
           label: (context) => {
             const value = context.parsed.y;
             if (value === null) return;
             const datasetLabel = context.dataset.label || '';
+            const dataIndex = context.dataIndex;
+            const isProjection = dataIndex >= projectionStartIndex;
 
             if (datasetLabel.includes('BTC Price')) {
-              const dataIndex = context.dataIndex;
+              // BTC price is only available for historical data
+              if (isProjection) return;
               const sigmaVal = sampledData[dataIndex]?.sigmaDeviation;
               const sigmaStr = sigmaVal !== undefined
                 ? ` (${sigmaVal >= 0 ? '+' : ''}${sigmaVal.toFixed(2)}σ)`
@@ -280,7 +392,8 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
             }
 
             if (datasetLabel.includes('Power Law')) {
-              return `${datasetLabel}: $${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+              const prefix = isProjection ? 'Projected Model' : datasetLabel;
+              return `${prefix}: $${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
             }
 
             return;
@@ -289,15 +402,33 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
             const dataIndex = tooltipItems[0]?.dataIndex;
             if (dataIndex === undefined) return [];
 
-            const point = sampledData[dataIndex];
-            if (!point) return [];
+            const isProjection = dataIndex >= projectionStartIndex;
+
+            // Get band values from either historical or projection data
+            let band2Upper: number, band1Upper: number, band1Lower: number, band2Lower: number;
+            if (isProjection) {
+              const projIndex = dataIndex - projectionStartIndex;
+              const projPoint = sampledProjections[projIndex];
+              if (!projPoint) return [];
+              band2Upper = projPoint.band2SigmaUpper;
+              band1Upper = projPoint.band1SigmaUpper;
+              band1Lower = projPoint.band1SigmaLower;
+              band2Lower = projPoint.band2SigmaLower;
+            } else {
+              const point = sampledData[dataIndex];
+              if (!point) return [];
+              band2Upper = point.band2SigmaUpper;
+              band1Upper = point.band1SigmaUpper;
+              band1Lower = point.band1SigmaLower;
+              band2Lower = point.band2SigmaLower;
+            }
 
             return [
               '',
-              `+2σ: $${point.band2SigmaUpper.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-              `+1σ: $${point.band1SigmaUpper.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-              `-1σ: $${point.band1SigmaLower.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-              `-2σ: $${point.band2SigmaLower.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+              `+2σ: $${band2Upper.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+              `+1σ: $${band1Upper.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+              `-1σ: $${band1Lower.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+              `-2σ: $${band2Lower.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
             ];
           },
         },
@@ -344,10 +475,16 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
     if (chartRef.current) {
       chartRef.current.update();
     }
-  }, [isLogScale, showHalvings]);
+  }, [isLogScale, showHalvings, showProjections]);
 
-  // Conditionally include plugin based on showHalvings
-  const plugins = showHalvings ? [halvingPlugin] : [];
+  // Build plugins array based on enabled features
+  const plugins: Plugin<'line'>[] = [];
+  if (showHalvings) {
+    plugins.push(halvingPlugin);
+  }
+  if (showProjections && sampledProjections.length > 0) {
+    plugins.push(projectionPlugin);
+  }
 
   return (
     <div className="w-full h-[400px] md:h-[500px]">
@@ -356,9 +493,10 @@ export default function PriceChart({ data, isLogScale, showHalvings }: PriceChar
         Data: {debugInfo.minDate} → {debugInfo.maxDate} |
         Halvings found: {halvingIndices.length}/4 |
         Show: {showHalvings ? 'ON' : 'OFF'}
+        {showProjections && ` | Projection: ${sampledProjections.length} pts`}
       </div>
       <Line
-        key={`price-chart-${showHalvings}`}
+        key={`price-chart-${showHalvings}-${showProjections}-${projectionData.length}`}
         ref={chartRef}
         data={chartData}
         options={options}

@@ -73,3 +73,15 @@ export interface PortfolioSummary {
   band2SigmaUpper: number;
   band2SigmaLower: number;
 }
+
+export interface ProjectionDataPoint {
+  date: Date;
+  timestamp: number;
+  daysSinceGenesis: number;
+  fittedPrice: number;
+  band1SigmaUpper: number;
+  band1SigmaLower: number;
+  band2SigmaUpper: number;
+  band2SigmaLower: number;
+  isProjection: true;
+}

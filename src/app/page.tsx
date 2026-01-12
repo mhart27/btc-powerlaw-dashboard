@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { PriceDataPoint, PowerLawFit, FittedDataPoint, PortfolioSummary } from '@/lib/types';
-import { fitPowerLaw, applyFitToData, calculateRollingVolatility, calculatePortfolioSummary } from '@/lib/powerlaw';
+import { PriceDataPoint, PowerLawFit, FittedDataPoint, PortfolioSummary, ProjectionDataPoint } from '@/lib/types';
+import { fitPowerLaw, applyFitToData, calculateRollingVolatility, calculatePortfolioSummary, generateProjections } from '@/lib/powerlaw';
 import Controls from '@/components/Controls';
 import PasswordGate, { useAuth } from '@/components/PasswordGate';
 
@@ -13,6 +13,8 @@ const DeviationChart = dynamic(() => import('@/components/DeviationChart'), { ss
 const VolatilityChart = dynamic(() => import('@/components/VolatilityChart'), { ssr: false });
 
 const BTC_HELD_STORAGE_KEY = 'btc-powerlaw-btc-held';
+const SHOW_PROJECTIONS_KEY = 'btc-powerlaw-show-projections';
+const PROJECTION_YEARS_KEY = 'btc-powerlaw-projection-years';
 
 function Dashboard() {
   const { handleLogout } = useAuth();
@@ -22,18 +24,33 @@ function Dashboard() {
   const [fitStartDate, setFitStartDate] = useState('2013-01-01');
   const [isLogScale, setIsLogScale] = useState(true);
   const [showHalvings, setShowHalvings] = useState(true);
+  const [showProjections, setShowProjections] = useState(false);
+  const [projectionYears, setProjectionYears] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [btcHeld, setBtcHeld] = useState(0);
 
-  // Load btcHeld from localStorage on mount
+  // Load settings from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(BTC_HELD_STORAGE_KEY);
-      if (stored) {
-        const parsed = parseFloat(stored);
+      // Load BTC held
+      const storedBtc = localStorage.getItem(BTC_HELD_STORAGE_KEY);
+      if (storedBtc) {
+        const parsed = parseFloat(storedBtc);
         if (!isNaN(parsed) && parsed >= 0) {
           setBtcHeld(parsed);
+        }
+      }
+      // Load projection settings
+      const storedShowProjections = localStorage.getItem(SHOW_PROJECTIONS_KEY);
+      if (storedShowProjections !== null) {
+        setShowProjections(storedShowProjections === 'true');
+      }
+      const storedProjectionYears = localStorage.getItem(PROJECTION_YEARS_KEY);
+      if (storedProjectionYears) {
+        const parsed = parseInt(storedProjectionYears, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 25) {
+          setProjectionYears(parsed);
         }
       }
     }
@@ -44,6 +61,24 @@ function Dashboard() {
     setBtcHeld(value);
     if (typeof window !== 'undefined') {
       localStorage.setItem(BTC_HELD_STORAGE_KEY, value.toString());
+    }
+  }, []);
+
+  // Save projection settings to localStorage
+  const handleToggleProjections = useCallback(() => {
+    setShowProjections(prev => {
+      const newValue = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(SHOW_PROJECTIONS_KEY, String(newValue));
+      }
+      return newValue;
+    });
+  }, []);
+
+  const handleProjectionYearsChange = useCallback((years: number) => {
+    setProjectionYears(years);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PROJECTION_YEARS_KEY, String(years));
     }
   }, []);
 
@@ -66,6 +101,13 @@ function Dashboard() {
     const lastPoint = fittedData[fittedData.length - 1];
     return calculatePortfolioSummary(lastPoint, btcHeld);
   }, [fittedData, btcHeld]);
+
+  // Generate projection data when projections are enabled
+  const projectionData = useMemo((): ProjectionDataPoint[] => {
+    if (!showProjections || fittedData.length === 0 || !fit) return [];
+    const lastPoint = fittedData[fittedData.length - 1];
+    return generateProjections(new Date(lastPoint.date), fit, projectionYears);
+  }, [showProjections, fittedData, fit, projectionYears]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -159,6 +201,10 @@ function Dashboard() {
           onToggleScale={() => setIsLogScale(!isLogScale)}
           showHalvings={showHalvings}
           onToggleHalvings={() => setShowHalvings(!showHalvings)}
+          showProjections={showProjections}
+          onToggleProjections={handleToggleProjections}
+          projectionYears={projectionYears}
+          onProjectionYearsChange={handleProjectionYearsChange}
           fit={fit}
           isLoading={isLoading}
           currentSigma={currentSigma}
@@ -174,7 +220,13 @@ function Dashboard() {
         ) : fittedData.length > 0 ? (
           <div className="grid gap-6">
             <div className="bg-gray-800 rounded-lg p-4">
-              <PriceChart data={fittedData} isLogScale={isLogScale} showHalvings={showHalvings} />
+              <PriceChart
+                data={fittedData}
+                isLogScale={isLogScale}
+                showHalvings={showHalvings}
+                showProjections={showProjections}
+                projectionData={projectionData}
+              />
             </div>
             <div className="bg-gray-800 rounded-lg p-4">
               <DeviationChart data={fittedData} showHalvings={showHalvings} />

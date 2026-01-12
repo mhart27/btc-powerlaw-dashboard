@@ -12,6 +12,10 @@ interface ControlsProps {
   onToggleScale: () => void;
   showHalvings: boolean;
   onToggleHalvings: () => void;
+  showProjections: boolean;
+  onToggleProjections: () => void;
+  projectionYears: number;
+  onProjectionYearsChange: (years: number) => void;
   fit: PowerLawFit | null;
   isLoading: boolean;
   currentSigma: number | null;
@@ -48,6 +52,10 @@ export default function Controls({
   onToggleScale,
   showHalvings,
   onToggleHalvings,
+  showProjections,
+  onToggleProjections,
+  projectionYears,
+  onProjectionYearsChange,
   fit,
   isLoading,
   currentSigma,
@@ -151,6 +159,42 @@ export default function Controls({
               <div className="relative w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
               <span className="text-sm text-gray-300">Halvings</span>
             </label>
+
+            {/* Projections Toggle */}
+            <label className="flex items-center gap-2 px-3 py-2 bg-gray-700 rounded cursor-pointer hover:bg-gray-600 transition-colors">
+              <input
+                type="checkbox"
+                checked={showProjections}
+                onChange={onToggleProjections}
+                className="sr-only peer"
+              />
+              <div className="relative w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
+              <span className="text-sm text-gray-300">Projections</span>
+            </label>
+
+            {/* Projection Years Input (only shown when projections are enabled) */}
+            {showProjections && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-700 rounded">
+                <label htmlFor="projectionYears" className="text-sm text-gray-300">
+                  Years
+                </label>
+                <input
+                  type="number"
+                  id="projectionYears"
+                  value={projectionYears}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val) && val >= 1 && val <= 25) {
+                      onProjectionYearsChange(val);
+                    }
+                  }}
+                  className="bg-gray-600 text-white px-2 py-1 rounded border border-gray-500 focus:border-purple-500 focus:outline-none w-16 text-center"
+                  min="1"
+                  max="25"
+                  step="1"
+                />
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import { PriceDataPoint, PowerLawFit, FittedDataPoint, VolatilityDataPoint, PortfolioDataPoint, PortfolioSummary } from './types';
+import { PriceDataPoint, PowerLawFit, FittedDataPoint, VolatilityDataPoint, PortfolioDataPoint, PortfolioSummary, ProjectionDataPoint } from './types';
 
 export const BITCOIN_GENESIS_DATE = new Date('2009-01-03T00:00:00Z');
 
@@ -182,4 +182,69 @@ export function calculatePortfolioSummary(
     band2SigmaUpper: btcHeld * lastDataPoint.band2SigmaUpper,
     band2SigmaLower: btcHeld * lastDataPoint.band2SigmaLower,
   };
+}
+
+/**
+ * Generate projection data points extending from the last real data point
+ * @param lastDate - The last real data date
+ * @param fit - The power law fit parameters
+ * @param projectionYears - Number of years to project forward
+ * @returns Array of projection data points
+ */
+export function generateProjections(
+  lastDate: Date,
+  fit: PowerLawFit,
+  projectionYears: number
+): ProjectionDataPoint[] {
+  const projections: ProjectionDataPoint[] = [];
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const totalDays = Math.round(projectionYears * 365);
+
+  for (let i = 1; i <= totalDays; i++) {
+    const date = new Date(lastDate.getTime() + i * msPerDay);
+    const timestamp = date.getTime();
+    const days = daysSinceGenesis(date);
+    const fittedPrice = powerLawPrice(days, fit);
+
+    // Calculate band prices using same formula as applyFitToData
+    const band1SigmaUpper = fittedPrice * Math.exp(fit.sigma);
+    const band1SigmaLower = fittedPrice * Math.exp(-fit.sigma);
+    const band2SigmaUpper = fittedPrice * Math.exp(2 * fit.sigma);
+    const band2SigmaLower = fittedPrice * Math.exp(-2 * fit.sigma);
+
+    projections.push({
+      date,
+      timestamp,
+      daysSinceGenesis: days,
+      fittedPrice,
+      band1SigmaUpper,
+      band1SigmaLower,
+      band2SigmaUpper,
+      band2SigmaLower,
+      isProjection: true,
+    });
+  }
+
+  return projections;
+}
+
+/**
+ * Generate an array of dates for projection
+ * @param startDate - The start date (last real data date)
+ * @param projectionYears - Number of years to project
+ * @returns Array of dates
+ */
+export function generateProjectionDates(
+  startDate: Date,
+  projectionYears: number
+): Date[] {
+  const dates: Date[] = [];
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const totalDays = Math.round(projectionYears * 365);
+
+  for (let i = 1; i <= totalDays; i++) {
+    dates.push(new Date(startDate.getTime() + i * msPerDay));
+  }
+
+  return dates;
 }
