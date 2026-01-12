@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { PriceDataPoint, PowerLawFit, FittedDataPoint, PortfolioSummary } from '@/lib/types';
 import { fitPowerLaw, applyFitToData, calculateRollingVolatility, calculatePortfolioSummary } from '@/lib/powerlaw';
 import Controls from '@/components/Controls';
+import PasswordGate, { useAuth } from '@/components/PasswordGate';
 
 // Dynamic imports to avoid SSR issues with Chart.js
 const PriceChart = dynamic(() => import('@/components/PriceChart'), { ssr: false });
@@ -13,7 +14,8 @@ const VolatilityChart = dynamic(() => import('@/components/VolatilityChart'), { 
 
 const BTC_HELD_STORAGE_KEY = 'btc-powerlaw-btc-held';
 
-export default function Home() {
+function Dashboard() {
+  const { handleLogout } = useAuth();
   const [priceData, setPriceData] = useState<PriceDataPoint[]>([]);
   const [fittedData, setFittedData] = useState<FittedDataPoint[]>([]);
   const [fit, setFit] = useState<PowerLawFit | null>(null);
@@ -124,9 +126,20 @@ export default function Home() {
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
         <header className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-center mb-2">
-            Bitcoin Power Law Dashboard
-          </h1>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex-1" />
+            <h1 className="text-3xl md:text-4xl font-bold text-center flex-1">
+              Bitcoin Power Law Dashboard
+            </h1>
+            <div className="flex-1 flex justify-end">
+              <button
+                onClick={handleLogout}
+                className="text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded border border-gray-600 hover:border-gray-500 transition-colors"
+              >
+                Log out
+              </button>
+            </div>
+          </div>
           <p className="text-gray-400 text-center">
             Analyzing BTC price using the power-law model: price = A &times; t<sup>B</sup>
           </p>
@@ -181,5 +194,13 @@ export default function Home() {
         </footer>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <PasswordGate>
+      <Dashboard />
+    </PasswordGate>
   );
 }

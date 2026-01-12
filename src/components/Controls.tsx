@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { PowerLawFit, PortfolioSummary, getValuationZone, getValuationLabel, ValuationZone } from '@/lib/types';
 import PortfolioCard from './PortfolioCard';
 
@@ -56,6 +57,38 @@ export default function Controls({
 }: ControlsProps) {
   const zone = currentSigma !== null ? getValuationZone(currentSigma) : null;
 
+  // Use string state for natural input behavior (no cursor jumping or forced formatting)
+  const [btcHeldInput, setBtcHeldInput] = useState(() => btcHeld > 0 ? String(btcHeld) : '');
+
+  // Sync input display when btcHeld changes externally (e.g., from localStorage on mount)
+  useEffect(() => {
+    setBtcHeldInput(btcHeld > 0 ? String(btcHeld) : '');
+  }, [btcHeld]);
+
+  const handleBtcHeldInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Allow empty, digits, and one decimal point
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      setBtcHeldInput(value);
+      // Update numeric value for calculations (0 if empty or invalid)
+      const numValue = parseFloat(value);
+      onBtcHeldChange(isNaN(numValue) || numValue < 0 ? 0 : numValue);
+    }
+  };
+
+  const handleBtcHeldBlur = () => {
+    // Clean up display on blur (remove trailing dot, etc.) but preserve user's precision
+    const numValue = parseFloat(btcHeldInput);
+    if (isNaN(numValue) || numValue <= 0) {
+      setBtcHeldInput('');
+      onBtcHeldChange(0);
+    } else {
+      // Keep the user's input format, just normalize trailing decimals
+      const cleaned = btcHeldInput.replace(/\.$/, '');
+      setBtcHeldInput(cleaned);
+    }
+  };
+
   return (
     <div className="bg-gray-800 rounded-lg p-4 md:p-6 mb-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -80,14 +113,14 @@ export default function Controls({
               BTC Held
             </label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               id="btcHeld"
-              value={btcHeld}
-              onChange={(e) => onBtcHeldChange(Math.max(0, parseFloat(e.target.value) || 0))}
+              value={btcHeldInput}
+              onChange={handleBtcHeldInputChange}
+              onBlur={handleBtcHeldBlur}
               className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-orange-500 focus:outline-none w-32"
-              min="0"
-              step="0.01"
-              placeholder="0.00"
+              placeholder="0"
             />
           </div>
 
