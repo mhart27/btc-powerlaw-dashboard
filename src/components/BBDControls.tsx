@@ -8,6 +8,7 @@ interface BBDControlsProps {
   onConfigChange: (config: BBDSimulatorConfig) => void;
   btcHeld: number;
   onBtcHeldChange: (value: number) => void;
+  onReset: () => void;
 }
 
 export default function BBDControls({
@@ -15,6 +16,7 @@ export default function BBDControls({
   onConfigChange,
   btcHeld,
   onBtcHeldChange,
+  onReset,
 }: BBDControlsProps) {
   // BTC held input handling (same as main dashboard)
   const [btcHeldInput, setBtcHeldInput] = useState(() => btcHeld > 0 ? String(btcHeld) : '');
@@ -51,7 +53,15 @@ export default function BBDControls({
 
   return (
     <div className="bg-gray-800 rounded-lg p-4 md:p-6 mb-6">
-      <h2 className="text-lg font-semibold text-white mb-4">Simulator Configuration</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-white">Simulator Configuration</h2>
+        <button
+          onClick={onReset}
+          className="text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded border border-gray-600 hover:border-gray-500 transition-colors"
+        >
+          Reset to defaults
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* BTC Held */}

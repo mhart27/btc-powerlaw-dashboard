@@ -36,28 +36,20 @@ const DEFAULT_CONFIG: BBDSimulatorConfig = {
   startDate: getCurrentMonth(),
 };
 
+// Default BTC Held value
+const DEFAULT_BTC_HELD = 1;
+
 function BBDDashboard() {
   const { handleLogout } = useAuth();
   const [priceData, setPriceData] = useState<PriceDataPoint[]>([]);
   const [fit, setFit] = useState<PowerLawFit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [btcHeld, setBtcHeld] = useState(0);
+  const [btcHeld, setBtcHeld] = useState(DEFAULT_BTC_HELD);
   const [config, setConfig] = useState<BBDSimulatorConfig>(DEFAULT_CONFIG);
 
-  // Load BTC held from localStorage on mount (shared with main dashboard)
-  // Note: BBD config is NOT restored from localStorage - always starts fresh
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedBtc = localStorage.getItem(BTC_HELD_STORAGE_KEY);
-      if (storedBtc) {
-        const parsed = parseFloat(storedBtc);
-        if (!isNaN(parsed) && parsed >= 0) {
-          setBtcHeld(parsed);
-        }
-      }
-    }
-  }, []);
+  // Note: BBD page always starts with default values - no localStorage restore
+  // localStorage is only written to (not read from) for cross-page sharing
 
   // Save btcHeld to localStorage when it changes
   const handleBtcHeldChange = useCallback((value: number) => {
@@ -70,6 +62,21 @@ function BBDDashboard() {
   // Update config (no localStorage save - always starts fresh on reload)
   const handleConfigChange = useCallback((newConfig: BBDSimulatorConfig) => {
     setConfig(newConfig);
+  }, []);
+
+  // Reset all inputs to defaults
+  const handleReset = useCallback(() => {
+    // Reset config to defaults
+    setConfig({
+      ...DEFAULT_CONFIG,
+      startDate: getCurrentMonth(), // Recalculate current month
+    });
+    // Reset BTC Held to default value
+    setBtcHeld(DEFAULT_BTC_HELD);
+    // Update localStorage for cross-page sharing
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(BTC_HELD_STORAGE_KEY, DEFAULT_BTC_HELD.toString());
+    }
   }, []);
 
   // Fetch price data and fit model
@@ -169,6 +176,7 @@ function BBDDashboard() {
               onConfigChange={handleConfigChange}
               btcHeld={btcHeld}
               onBtcHeldChange={handleBtcHeldChange}
+              onReset={handleReset}
             />
 
             {btcHeld <= 0 ? (
