@@ -3,6 +3,33 @@
 import { useState, useEffect } from 'react';
 import { BBDSimulatorConfig, PriceScenario, InterestMode, BorrowFrequency, getScenarioLabel } from '@/lib/bbd-simulator';
 
+// Scenario presets
+const SCENARIOS = {
+  conservative: {
+    btcHeld: 1,
+    monthlySpendingUsd: 1500,
+    interestAprPercent: 5,
+    liquidationLtvPercent: 30,
+    projectionYears: 20,
+  },
+  balanced: {
+    btcHeld: 2,
+    monthlySpendingUsd: 3000,
+    interestAprPercent: 7,
+    liquidationLtvPercent: 40,
+    projectionYears: 20,
+  },
+  aggressive: {
+    btcHeld: 5,
+    monthlySpendingUsd: 10000,
+    interestAprPercent: 9,
+    liquidationLtvPercent: 60,
+    projectionYears: 20,
+  },
+} as const;
+
+type ScenarioKey = keyof typeof SCENARIOS;
+
 interface BBDControlsProps {
   config: BBDSimulatorConfig;
   onConfigChange: (config: BBDSimulatorConfig) => void;
@@ -113,6 +140,26 @@ export default function BBDControls({
     onConfigChange({ ...config, ...updates });
   };
 
+  // Apply a scenario preset - updates both config and string input states
+  const applyScenario = (scenarioKey: ScenarioKey) => {
+    const scenario = SCENARIOS[scenarioKey];
+    // Update string states immediately for UI
+    setBtcHeldInput(String(scenario.btcHeld));
+    setMonthlySpendingInput(String(scenario.monthlySpendingUsd));
+    setInterestAprInput(String(scenario.interestAprPercent));
+    setLiquidationLtvInput(String(scenario.liquidationLtvPercent));
+    setProjectionYearsInput(String(scenario.projectionYears));
+    // Update numeric states
+    onBtcHeldChange(scenario.btcHeld);
+    onConfigChange({
+      ...config,
+      monthlySpendingUsd: scenario.monthlySpendingUsd,
+      interestAprPercent: scenario.interestAprPercent,
+      liquidationLtvPercent: scenario.liquidationLtvPercent,
+      projectionYears: scenario.projectionYears,
+    });
+  };
+
   const scenarios: PriceScenario[] = ['fair', 'plus1sigma', 'plus2sigma', 'minus1sigma', 'minus2sigma'];
 
   return (
@@ -125,6 +172,31 @@ export default function BBDControls({
         >
           Reset to defaults
         </button>
+      </div>
+
+      {/* Scenario Presets */}
+      <div className="mb-4 pb-4 border-b border-gray-700">
+        <label className="text-sm text-gray-400 block mb-2">Scenarios</label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => applyScenario('conservative')}
+            className="px-4 py-1.5 text-sm rounded border border-green-600 text-green-400 hover:bg-green-600 hover:text-white transition-colors"
+          >
+            Conservative
+          </button>
+          <button
+            onClick={() => applyScenario('balanced')}
+            className="px-4 py-1.5 text-sm rounded border border-blue-600 text-blue-400 hover:bg-blue-600 hover:text-white transition-colors"
+          >
+            Balanced
+          </button>
+          <button
+            onClick={() => applyScenario('aggressive')}
+            className="px-4 py-1.5 text-sm rounded border border-orange-600 text-orange-400 hover:bg-orange-600 hover:text-white transition-colors"
+          >
+            Aggressive
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -143,6 +215,7 @@ export default function BBDControls({
             className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-orange-500 focus:outline-none"
             placeholder="0"
           />
+          <p className="text-xs text-gray-500">Typical range: 0.5–5 BTC</p>
         </div>
 
         {/* Start Date */}
@@ -176,6 +249,7 @@ export default function BBDControls({
             className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
             placeholder="0"
           />
+          <p className="text-xs text-gray-500">Example: $1,000–$10,000 / month</p>
         </div>
 
         {/* Interest APR */}
@@ -193,6 +267,7 @@ export default function BBDControls({
             className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
             placeholder="0"
           />
+          <p className="text-xs text-gray-500">Common range: 4%–10%</p>
         </div>
 
         {/* Liquidation LTV */}
@@ -210,6 +285,7 @@ export default function BBDControls({
             className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
             placeholder="80"
           />
+          <p className="text-xs text-gray-500">Lower = safer · Higher = more leverage</p>
         </div>
 
         {/* Projection Horizon */}
@@ -227,6 +303,7 @@ export default function BBDControls({
             className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
             placeholder="20"
           />
+          <p className="text-xs text-gray-500">Typical: 10–30 years</p>
         </div>
 
         {/* Price Scenario */}
