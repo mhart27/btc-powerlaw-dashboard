@@ -21,9 +21,32 @@ export default function BBDControls({
   // BTC held input handling (same as main dashboard)
   const [btcHeldInput, setBtcHeldInput] = useState(() => btcHeld > 0 ? String(btcHeld) : '');
 
+  // String-based states for numeric inputs to fix "sticky first digit" bug
+  const [monthlySpendingInput, setMonthlySpendingInput] = useState(() => String(config.monthlySpendingUsd));
+  const [interestAprInput, setInterestAprInput] = useState(() => String(config.interestAprPercent));
+  const [liquidationLtvInput, setLiquidationLtvInput] = useState(() => String(config.liquidationLtvPercent));
+  const [projectionYearsInput, setProjectionYearsInput] = useState(() => String(config.projectionYears));
+
   useEffect(() => {
     setBtcHeldInput(btcHeld > 0 ? String(btcHeld) : '');
   }, [btcHeld]);
+
+  // Sync string inputs when config changes externally (e.g., reset)
+  useEffect(() => {
+    setMonthlySpendingInput(String(config.monthlySpendingUsd));
+  }, [config.monthlySpendingUsd]);
+
+  useEffect(() => {
+    setInterestAprInput(String(config.interestAprPercent));
+  }, [config.interestAprPercent]);
+
+  useEffect(() => {
+    setLiquidationLtvInput(String(config.liquidationLtvPercent));
+  }, [config.liquidationLtvPercent]);
+
+  useEffect(() => {
+    setProjectionYearsInput(String(config.projectionYears));
+  }, [config.projectionYears]);
 
   const handleBtcHeldInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -43,6 +66,47 @@ export default function BBDControls({
       const cleaned = btcHeldInput.replace(/\.$/, '');
       setBtcHeldInput(cleaned);
     }
+  };
+
+  // Generic handler for numeric string inputs (allows empty and valid number patterns)
+  const handleNumericInputChange = (
+    value: string,
+    setter: (val: string) => void,
+    allowDecimal: boolean = true
+  ) => {
+    const pattern = allowDecimal ? /^\d*\.?\d*$/ : /^\d*$/;
+    if (value === '' || pattern.test(value)) {
+      setter(value);
+    }
+  };
+
+  // Blur handlers that parse, clamp, and update config
+  const handleMonthlySpendingBlur = () => {
+    const numValue = parseFloat(monthlySpendingInput);
+    const clamped = isNaN(numValue) ? 0 : Math.max(0, numValue);
+    setMonthlySpendingInput(String(clamped));
+    updateConfig({ monthlySpendingUsd: clamped });
+  };
+
+  const handleInterestAprBlur = () => {
+    const numValue = parseFloat(interestAprInput);
+    const clamped = isNaN(numValue) ? 0 : Math.max(0, numValue);
+    setInterestAprInput(String(clamped));
+    updateConfig({ interestAprPercent: clamped });
+  };
+
+  const handleLiquidationLtvBlur = () => {
+    const numValue = parseFloat(liquidationLtvInput);
+    const clamped = isNaN(numValue) ? 1 : Math.max(1, Math.min(100, numValue));
+    setLiquidationLtvInput(String(clamped));
+    updateConfig({ liquidationLtvPercent: clamped });
+  };
+
+  const handleProjectionYearsBlur = () => {
+    const numValue = parseInt(projectionYearsInput, 10);
+    const clamped = isNaN(numValue) ? 1 : Math.max(1, Math.min(30, numValue));
+    setProjectionYearsInput(String(clamped));
+    updateConfig({ projectionYears: clamped });
   };
 
   const updateConfig = (updates: Partial<BBDSimulatorConfig>) => {
@@ -103,13 +167,14 @@ export default function BBDControls({
             Monthly Spending (USD)
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             id="monthlySpending"
-            value={config.monthlySpendingUsd}
-            onChange={(e) => updateConfig({ monthlySpendingUsd: Math.max(0, Number(e.target.value)) })}
+            value={monthlySpendingInput}
+            onChange={(e) => handleNumericInputChange(e.target.value, setMonthlySpendingInput)}
+            onBlur={handleMonthlySpendingBlur}
             className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-            min="0"
-            step="100"
+            placeholder="0"
           />
         </div>
 
@@ -119,14 +184,14 @@ export default function BBDControls({
             Interest APR (%)
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             id="interestApr"
-            value={config.interestAprPercent}
-            onChange={(e) => updateConfig({ interestAprPercent: Math.max(0, Number(e.target.value)) })}
+            value={interestAprInput}
+            onChange={(e) => handleNumericInputChange(e.target.value, setInterestAprInput)}
+            onBlur={handleInterestAprBlur}
             className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-            min="0"
-            max="50"
-            step="0.5"
+            placeholder="0"
           />
         </div>
 
@@ -136,14 +201,14 @@ export default function BBDControls({
             Liquidation LTV (%)
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             id="liquidationLtv"
-            value={config.liquidationLtvPercent}
-            onChange={(e) => updateConfig({ liquidationLtvPercent: Math.max(1, Math.min(100, Number(e.target.value))) })}
+            value={liquidationLtvInput}
+            onChange={(e) => handleNumericInputChange(e.target.value, setLiquidationLtvInput, false)}
+            onBlur={handleLiquidationLtvBlur}
             className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-            min="1"
-            max="100"
-            step="1"
+            placeholder="80"
           />
         </div>
 
@@ -153,14 +218,14 @@ export default function BBDControls({
             Projection Horizon (years)
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             id="projectionYears"
-            value={config.projectionYears}
-            onChange={(e) => updateConfig({ projectionYears: Math.max(1, Math.min(30, Number(e.target.value))) })}
+            value={projectionYearsInput}
+            onChange={(e) => handleNumericInputChange(e.target.value, setProjectionYearsInput, false)}
+            onBlur={handleProjectionYearsBlur}
             className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
-            min="1"
-            max="30"
-            step="1"
+            placeholder="20"
           />
         </div>
 
