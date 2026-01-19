@@ -50,18 +50,25 @@ export default function BBDCharts({ result }: BBDChartsProps) {
 
   const labels = sampledSteps.map(s => format(s.date, 'MMM yyyy'));
 
-  // Liquidation indicator plugin
+  // Unique key to force chart re-render when liquidation state changes
+  const chartKey = `${summary.isLiquidated}-${summary.liquidationMonth ?? 'none'}-${sampledSteps.length}`;
+
+  // Find liquidation index once for the plugin (defensive: verify the step actually exists)
+  const liquidationSampledIdx = summary.isLiquidated
+    ? sampledSteps.findIndex(s => s.isLiquidated === true)
+    : -1;
+
+  // Liquidation indicator plugin - only draws when liquidation confirmed in both summary AND steps
   const liquidationPlugin: Plugin<'line'> = useMemo(() => ({
     id: 'liquidationPlugin',
     afterDraw: (chart) => {
-      if (!summary.isLiquidated || summary.liquidationMonth === null) return;
+      // Double-check: only draw if summary says liquidated AND we found a liquidated step
+      if (!summary.isLiquidated || summary.liquidationMonth === null || liquidationSampledIdx === -1) {
+        return;
+      }
 
       const { ctx, chartArea, scales } = chart;
       if (!chartArea || !scales.x) return;
-
-      // Find the index of liquidation in sampled data
-      const liquidationSampledIdx = sampledSteps.findIndex(s => s.isLiquidated);
-      if (liquidationSampledIdx === -1) return;
 
       const xPos = scales.x.getPixelForValue(liquidationSampledIdx);
       const { top, bottom } = chartArea;
@@ -90,7 +97,7 @@ export default function BBDCharts({ result }: BBDChartsProps) {
       ctx.fillText(labelText, xPos, top + 18);
       ctx.restore();
     },
-  }), [summary.isLiquidated, summary.liquidationMonth, sampledSteps]);
+  }), [summary.isLiquidated, summary.liquidationMonth, liquidationSampledIdx]);
 
   // LTV Chart
   const ltvChartData = {
@@ -327,6 +334,7 @@ export default function BBDCharts({ result }: BBDChartsProps) {
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="h-[300px] md:h-[350px]">
           <Line
+            key={`ltv-${chartKey}`}
             data={ltvChartData}
             options={ltvOptions}
             plugins={[liquidationPlugin]}
@@ -338,6 +346,7 @@ export default function BBDCharts({ result }: BBDChartsProps) {
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="h-[300px] md:h-[350px]">
           <Line
+            key={`loan-${chartKey}`}
             data={loanChartData}
             options={loanOptions}
             plugins={[liquidationPlugin]}
@@ -349,6 +358,7 @@ export default function BBDCharts({ result }: BBDChartsProps) {
       <div className="bg-gray-800 rounded-lg p-4">
         <div className="h-[300px] md:h-[350px]">
           <Line
+            key={`equity-${chartKey}`}
             data={equityChartData}
             options={equityOptions}
             plugins={[liquidationPlugin]}
