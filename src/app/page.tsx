@@ -13,7 +13,6 @@ const PriceChart = dynamic(() => import('@/components/PriceChart'), { ssr: false
 const DeviationChart = dynamic(() => import('@/components/DeviationChart'), { ssr: false });
 const VolatilityChart = dynamic(() => import('@/components/VolatilityChart'), { ssr: false });
 
-const BTC_HELD_STORAGE_KEY = 'btc-powerlaw-btc-held';
 const SHOW_PROJECTIONS_KEY = 'btc-powerlaw-show-projections';
 const PROJECTION_YEARS_KEY = 'btc-powerlaw-projection-years';
 
@@ -29,19 +28,11 @@ function Dashboard() {
   const [projectionYears, setProjectionYears] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [btcHeld, setBtcHeld] = useState(0);
+  const [btcHeld, setBtcHeld] = useState(1);
 
-  // Load settings from localStorage on mount
+  // Load settings from localStorage on mount (projection settings only, btcHeld resets to default)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Load BTC held
-      const storedBtc = localStorage.getItem(BTC_HELD_STORAGE_KEY);
-      if (storedBtc) {
-        const parsed = parseFloat(storedBtc);
-        if (!isNaN(parsed) && parsed >= 0) {
-          setBtcHeld(parsed);
-        }
-      }
       // Load projection settings
       const storedShowProjections = localStorage.getItem(SHOW_PROJECTIONS_KEY);
       if (storedShowProjections !== null) {
@@ -57,12 +48,9 @@ function Dashboard() {
     }
   }, []);
 
-  // Save btcHeld to localStorage when it changes
+  // Update btcHeld (no localStorage persistence - resets to default on refresh)
   const handleBtcHeldChange = useCallback((value: number) => {
     setBtcHeld(value);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(BTC_HELD_STORAGE_KEY, value.toString());
-    }
   }, []);
 
   // Save projection settings to localStorage
