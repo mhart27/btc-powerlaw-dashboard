@@ -34,6 +34,7 @@ const DEFAULT_CONFIG: BBDSimulatorConfig = {
   projectionYears: 20,
   scenario: 'fair',
   startDate: getCurrentMonth(),
+  spendingSteps: [],
 };
 
 // Default BTC Held value

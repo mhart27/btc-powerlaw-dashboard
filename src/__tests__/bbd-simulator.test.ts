@@ -199,6 +199,7 @@ describe('runBBDSimulation', () => {
     projectionYears: 5,
     scenario: 'fair',
     startDate: '2025-01',
+    spendingSteps: [],
   };
 
   describe('with borrow monthly mode', () => {
@@ -510,6 +511,7 @@ describe('getYearlyData', () => {
       projectionYears: 3,
       scenario: 'fair',
       startDate: '2025-01',
+      spendingSteps: [],
     };
 
     const result = runBBDSimulation(config, mockFit, testDate);
@@ -531,6 +533,7 @@ describe('getYearlyData', () => {
       projectionYears: 3,
       scenario: 'plus1sigma', // Optimistic scenario
       startDate: '2025-01',
+      spendingSteps: [],
     };
 
     const result = runBBDSimulation(config, mockFit, testDate);
@@ -557,6 +560,7 @@ describe('getYearlyData', () => {
       projectionYears: 10,
       scenario: 'minus2sigma',
       startDate: '2025-01',
+      spendingSteps: [],
     };
 
     const result = runBBDSimulation(config, mockFit, testDate);

@@ -31,6 +31,7 @@ export interface BBDSimulatorConfig {
   projectionYears: number;
   scenario: PriceScenario;
   startDate: string; // ISO date string (YYYY-MM) for simulation start
+  spendingSteps: Array<{ startYear: number; monthlySpendingUsd: number }>;
 }
 
 /**
@@ -189,6 +190,19 @@ export function generateMixedPricePath(
 }
 
 /**
+ * Get the monthly spending for a given month index, accounting for step-ups
+ */
+export function getMonthlySpending(config: BBDSimulatorConfig, monthIndex: number): number {
+  const yearIntoProjection = Math.floor(monthIndex / 12) + 1;
+  let spending = config.monthlySpendingUsd;
+  const sorted = [...config.spendingSteps].sort((a, b) => a.startYear - b.startYear);
+  for (const step of sorted) {
+    if (yearIntoProjection >= step.startYear) spending = step.monthlySpendingUsd;
+  }
+  return spending;
+}
+
+/**
  * Run the BBD simulation
  *
  * The simulation models borrowing against BTC collateral to fund spending.
@@ -246,15 +260,16 @@ export function runBBDSimulation(
 
     // If borrow mode is enabled, borrow based on frequency
     if (config.borrowMonthly && i > 0) {
+      const currentSpending = getMonthlySpending(config, i);
       if (config.borrowFrequency === 'monthly') {
         // Monthly: borrow monthly spending each month
-        loanBalance += config.monthlySpendingUsd;
-        borrowedThisMonth = config.monthlySpendingUsd;
-        totalBorrowed += config.monthlySpendingUsd;
+        loanBalance += currentSpending;
+        borrowedThisMonth = currentSpending;
+        totalBorrowed += currentSpending;
       } else if (config.borrowFrequency === 'yearly') {
         // Yearly: borrow 12x monthly spending once per year (at months 12, 24, 36, ...)
         if (i % 12 === 0) {
-          const yearlyAmount = config.monthlySpendingUsd * 12;
+          const yearlyAmount = currentSpending * 12;
           loanBalance += yearlyAmount;
           borrowedThisMonth = yearlyAmount;
           totalBorrowed += yearlyAmount;

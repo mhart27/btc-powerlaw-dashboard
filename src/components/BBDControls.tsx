@@ -48,6 +48,10 @@ export default function BBDControls({
   // BTC held input handling (same as main dashboard)
   const [btcHeldInput, setBtcHeldInput] = useState(() => btcHeld > 0 ? String(btcHeld) : '');
 
+  // Spending step-up input state
+  const [stepYear, setStepYear] = useState(2);
+  const [stepAmount, setStepAmount] = useState('');
+
   // String-based states for numeric inputs to fix "sticky first digit" bug
   const [monthlySpendingInput, setMonthlySpendingInput] = useState(() => String(config.monthlySpendingUsd));
   const [interestAprInput, setInterestAprInput] = useState(() => String(config.interestAprPercent));
@@ -157,6 +161,7 @@ export default function BBDControls({
       interestAprPercent: scenario.interestAprPercent,
       liquidationLtvPercent: scenario.liquidationLtvPercent,
       projectionYears: scenario.projectionYears,
+      spendingSteps: [],
     });
   };
 
@@ -250,6 +255,74 @@ export default function BBDControls({
             placeholder="0"
           />
           <p className="text-xs text-gray-500">Example: $1,000–$10,000 / month</p>
+        </div>
+
+        {/* Spending Step-Ups */}
+        <div className="flex flex-col gap-1 md:col-span-2 lg:col-span-4">
+          <label className="text-sm text-gray-400">Spending Step-Ups</label>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">Start in Year</span>
+              <input
+                type="number"
+                value={stepYear}
+                onChange={(e) => setStepYear(Math.max(2, Math.min(config.projectionYears, parseInt(e.target.value, 10) || 2)))}
+                className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none w-24"
+                min={2}
+                max={config.projectionYears}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">New $/mo</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={stepAmount}
+                onChange={(e) => {
+                  if (e.target.value === '' || /^\d*$/.test(e.target.value)) {
+                    setStepAmount(e.target.value);
+                  }
+                }}
+                className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none w-32"
+                placeholder="e.g. 50000"
+              />
+            </div>
+            <button
+              onClick={() => {
+                const amount = parseInt(stepAmount, 10);
+                if (isNaN(amount) || amount <= 0) return;
+                if (stepYear < 2 || stepYear > config.projectionYears) return;
+                const filtered = config.spendingSteps.filter(s => s.startYear !== stepYear);
+                updateConfig({ spendingSteps: [...filtered, { startYear: stepYear, monthlySpendingUsd: amount }] });
+                setStepAmount('');
+              }}
+              className="px-4 py-2 text-sm rounded border border-blue-600 text-blue-400 hover:bg-blue-600 hover:text-white transition-colors whitespace-nowrap"
+            >
+              + Add step
+            </button>
+          </div>
+          {config.spendingSteps.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {[...config.spendingSteps]
+                .sort((a, b) => a.startYear - b.startYear)
+                .map((step) => (
+                  <span
+                    key={step.startYear}
+                    className="inline-flex items-center gap-1.5 bg-gray-700 text-gray-300 text-sm px-3 py-1 rounded"
+                  >
+                    Year {step.startYear} &rarr; ${step.monthlySpendingUsd.toLocaleString()}/mo
+                    <button
+                      onClick={() => updateConfig({ spendingSteps: config.spendingSteps.filter(s => s.startYear !== step.startYear) })}
+                      className="text-gray-500 hover:text-red-400 ml-1"
+                      title="Remove step"
+                    >
+                      &times;
+                    </button>
+                  </span>
+                ))}
+            </div>
+          )}
+          <p className="text-xs text-gray-500">Year 1 uses the base spending above.</p>
         </div>
 
         {/* Interest APR */}
