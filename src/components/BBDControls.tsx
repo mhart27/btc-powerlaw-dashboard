@@ -48,8 +48,8 @@ export default function BBDControls({
   // BTC held input handling (same as main dashboard)
   const [btcHeldInput, setBtcHeldInput] = useState(() => btcHeld > 0 ? String(btcHeld) : '');
 
-  // Spending step-up input state
-  const [stepYear, setStepYear] = useState(2);
+  // Spending step-up input state (string while typing, parsed on blur/save)
+  const [stepYearInput, setStepYearInput] = useState('2');
   const [stepAmount, setStepAmount] = useState('');
 
   // String-based states for numeric inputs to fix "sticky first digit" bug
@@ -264,12 +264,20 @@ export default function BBDControls({
             <div className="flex flex-col gap-1">
               <span className="text-xs text-gray-500">Start in Year</span>
               <input
-                type="number"
-                value={stepYear}
-                onChange={(e) => setStepYear(Math.max(2, Math.min(config.projectionYears, parseInt(e.target.value, 10) || 2)))}
+                type="text"
+                inputMode="numeric"
+                value={stepYearInput}
+                onChange={(e) => {
+                  if (e.target.value === '' || /^\d*$/.test(e.target.value)) {
+                    setStepYearInput(e.target.value);
+                  }
+                }}
+                onBlur={() => {
+                  const num = parseInt(stepYearInput, 10);
+                  const clamped = isNaN(num) ? 2 : Math.max(2, Math.min(config.projectionYears, num));
+                  setStepYearInput(String(clamped));
+                }}
                 className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none w-24"
-                min={2}
-                max={config.projectionYears}
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -291,9 +299,10 @@ export default function BBDControls({
               onClick={() => {
                 const amount = parseInt(stepAmount, 10);
                 if (isNaN(amount) || amount <= 0) return;
-                if (stepYear < 2 || stepYear > config.projectionYears) return;
-                const filtered = config.spendingSteps.filter(s => s.startYear !== stepYear);
-                updateConfig({ spendingSteps: [...filtered, { startYear: stepYear, monthlySpendingUsd: amount }] });
+                const year = parseInt(stepYearInput, 10);
+                if (isNaN(year) || year < 2 || year > config.projectionYears) return;
+                const filtered = config.spendingSteps.filter(s => s.startYear !== year);
+                updateConfig({ spendingSteps: [...filtered, { startYear: year, monthlySpendingUsd: amount }] });
                 setStepAmount('');
               }}
               className="px-4 py-2 text-sm rounded border border-blue-600 text-blue-400 hover:bg-blue-600 hover:text-white transition-colors whitespace-nowrap"
